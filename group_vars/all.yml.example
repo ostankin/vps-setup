@@ -1,0 +1,17 @@
+server_ip: "1.2.3.4"  # IP-адрес целевого сервера 
+root_password: "xxxxxx"  # рутовый пароль
+public_keys:  # Какие ключи добавить на хост
+- "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHfmxMKJ+75DLgU3SdvXEkixy0E3CCu4ExTOHWsO9g2w my_laptop@example.com"
+domain: "my-domain-for-tls.example.com"  # Настоящий домен, имеющий A-запись в DNS, указывающую на {{ server_ip }}
+xray_version: "26.3.27"
+xray_private_key: "cOPt7iMfyOEj-jk3i5oRbFoINFwGSWzrEXCxs2RiHkQ"  # Сгенерировать командой: xray x25519
+xray_public_key: "xZnri5gsFaDiFeaOvuGqkdaGRjLQVHBQ4Td97DJknxE"
+xray_short_id: "6f46ffa453ba9a61"  # Сгенерировать командой: openssl rand -hex 8:
+xray_clients:  # Список 
+- name: My mobile
+  xray_uuid: "2e64e4ec-79e7-4762-b164-968451d20f81"  # Сгенерировать командой: uuidgen
+- name: Wife's mobile
+  xray_uuid: "d26c5871-0a25-41ea-82fc-a0dd96cc9924"  # Сгенерировать командой: uuidgen
+proxy_clients:  # Список разрешённых IP для подключения к squid
+  - ip: "2.3.4.5"  # Дом
+  - ip: "3.4.5.6"  # Дача

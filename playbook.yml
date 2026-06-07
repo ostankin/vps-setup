@@ -1,0 +1,189 @@
+---
+- hosts: xray_server
+  become: true
+  tasks:
+    - name: Add public keys
+      ansible.posix.authorized_key:
+        user: root
+        key: "{{ item }}"
+        state: present
+        exclusive: false
+      loop: "{{ public_keys }}"  
+
+    # Xray installation and configuration
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600  # считать свежим в течение часа
+  
+    - name: Install dependencies
+      apt:
+        name:
+          - curl
+          - wget
+          - unzip
+          - uuid-runtime
+          - qrencode
+        state: present
+        update_cache: false
+
+    - name: Check installed Xray version
+      command: /usr/local/bin/xray version
+      register: xray_installed
+      changed_when: false
+      failed_when: false
+
+    - name: Download latest Xray release URL
+      uri:
+        url: https://api.github.com/repos/XTLS/Xray-core/releases/tags/v{{ xray_version }}
+        return_content: yes
+      check_mode: no
+      register: xray_release
+
+    - name: Extract Xray Linux64 metadata
+      set_fact:
+        xray_linux64_metadata: "{{ xray_release.json.assets | selectattr('name', 'match', 'Xray-linux-64.zip') }}"
+
+    - name: Extract Xray download URL
+      set_fact:
+        xray_url: "{{ xray_linux64_metadata | map(attribute='browser_download_url') | first }}"
+
+    - name: Download Xray binary
+      get_url:
+        url: "{{ xray_url }}"
+        dest: /tmp/xray.zip
+        checksum: "{{ xray_linux64_metadata | map(attribute='digest') | first }}"
+      check_mode: no
+      register: xray_downloaded
+      when: xray_installed is failed or xray_installed.stdout is not search(xray_version)
+
+    - name: Unzip Xray
+      unarchive:
+        src: /tmp/xray.zip
+        dest: /usr/local/bin/
+        remote_src: true
+      when: xray_downloaded is changed
+
+    - name: Delete zip-archive
+      file:
+        path: /tmp/xray.zip
+        state: absent
+      check_mode: no
+
+    - name: Create Xray config directory
+      file:
+        path: /etc/xray
+        state: directory
+
+    - name: Copy Xray config
+      template:
+        src: templates/config.json.j2
+        dest: /etc/xray/config.json
+      notify: Xray unit changed
+
+    - name: Create systemd service for Xray
+      template:
+        src: templates/xray_systemd.j2
+        dest: /etc/systemd/system/xray.service
+      notify: Xray unit changed
+
+    - name: Enable and start Xray
+      systemd:
+        name: xray
+        state: started
+        enabled: true
+
+    # Caddy installation and configuration
+    - name: Install debian keyring packages
+      apt:
+        name:
+          - debian-keyring
+          - debian-archive-keyring
+          - apt-transport-https
+        state: present
+
+    - name: Add Caddy repository
+      apt_repository:
+        repo: "deb [trusted=yes] https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version main"
+        filename: caddy-stable
+        state: present
+
+    - name: Update apt cache after adding Caddy repo
+      apt:
+        update_cache: yes
+
+    - name: Install Caddy
+      apt:
+        name: caddy
+        state: present
+
+    - name: Create Caddyfile
+      template:
+        src: templates/Caddyfile.j2
+        dest: /etc/caddy/Caddyfile
+      notify: Reload Caddy
+
+    - name: Create web root directory
+      file:
+        path: /var/www/html
+        state: directory
+        owner: www-data
+        group: www-data
+
+    - name: Enable and start Caddy
+      systemd:
+        name: caddy
+        state: started
+        enabled: true
+
+    # Save VLESS links
+    - name: Generate VLESS links and QR codes script
+      template:
+        src: templates/generate_clients.sh.j2
+        dest: /tmp/generate_clients.sh
+        mode: '0755'
+
+    - name: Run clients generator
+      command: /tmp/generate_clients.sh
+      changed_when: true
+
+    # Squid proxy installation and configuration ===
+    - name: Install Squid
+      apt:
+        name: squid
+        state: present
+
+    - name: Copy Squid config
+      template:
+        src: templates/squid.conf.j2
+        dest: /etc/squid/squid.conf
+        mode: '0644'
+      notify: Restart Squid
+
+    - name: Enable and start Squid
+      systemd:
+        name: squid
+        state: started
+        enabled: true      
+
+  handlers:
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: true
+      listen: Xray unit changed
+
+    - name: Restart Xray
+      systemd:
+        name: xray
+        state: restarted
+      listen: Xray unit changed
+
+    - name: Reload Caddy
+      systemd:
+        name: caddy
+        state: reloaded
+
+    - name: Restart Squid
+      systemd:
+        name: squid
+        state: reloaded

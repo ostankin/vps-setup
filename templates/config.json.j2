@@ -1,0 +1,64 @@
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "port": 443,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {% for client in xray_clients %}
+          {
+            "id": "{{ client.xray_uuid }}",
+            "flow": "xtls-rprx-vision"
+          }{% if not loop.last %},{% endif %}
+          {% endfor %}        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "127.0.0.1:8443",
+          "xver": 0,
+          "serverNames": [
+            "{{ domain }}"
+          ],
+          "privateKey": "{{ xray_private_key }}",
+          "shortIds": [
+            "{{ xray_short_id }}"
+          ]
+        }
+      }
+    }
+  ],
+  "routing": {
+    "rules": [
+      {
+        "type": "field",
+        "domain": ["{{ domain }}"],
+        "outboundTag": "caddy"
+      }
+    ]
+  },
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "tag": "direct"
+    },
+    {
+      "protocol": "http",
+      "tag": "caddy",
+      "settings": {
+        "servers": [
+          {
+            "address": "127.0.0.1",
+            "port": 8443
+          }
+        ]
+      }
+    }
+  ]
+}

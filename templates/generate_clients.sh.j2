@@ -1,0 +1,21 @@
+#!/bin/bash
+set -euo pipefail
+
+OUTPUT="/etc/xray/clients.txt"
+> "$OUTPUT"
+
+{% for client in xray_clients %}
+{% set vless_url = "vless://" ~ client.xray_uuid ~ "@" ~ server_ip ~ ":443?type=tcp&security=reality&encryption=none&pbk=" ~ xray_public_key ~ "&headerType=none&fp=chrome&sni=" ~ domain ~ "&sid=" ~ xray_short_id ~ "&spx=%2F&flow=xtls-rprx-vision#" ~ client.name %}
+
+cat >> "$OUTPUT" << EOF
+# {{ client.name }}
+{{ vless_url }}
+
+QR code:
+EOF
+
+qrencode -t ANSIUTF8 "{{ vless_url }}" >> "$OUTPUT"
+
+echo "" >> "$OUTPUT"
+
+{% endfor %}

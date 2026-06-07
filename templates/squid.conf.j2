@@ -1,0 +1,28 @@
+http_port 3128
+
+{% for client in proxy_clients %}
+acl allowed_clients src {{ client.ip }}
+{% endfor %}
+
+acl SSL_ports port 443
+acl CONNECT method CONNECT
+acl Safe_ports port 80
+acl Safe_ports port 443
+acl Safe_ports port 21
+acl Safe_ports port 22
+acl Safe_ports port 8080
+acl Safe_ports port 8443
+
+http_access allow CONNECT SSL_ports allowed_clients
+http_access allow allowed_clients
+http_access deny all
+
+cache deny all
+read_timeout 5 minutes
+persistent_request_timeout 2 minutes
+pconn_timeout 2 minutes
+
+via off
+forwarded_for off
+
+dns_nameservers 8.8.8.8 1.1.1.1

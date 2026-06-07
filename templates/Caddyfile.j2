@@ -1,0 +1,15 @@
+:80 {
+    bind 0.0.0.0
+    header Server "nginx"
+    handle /.well-known/acme-challenge/* {
+        file_server
+    }
+    # Всё остальное — 404 или пустой ответ
+    respond "Not found" 404
+}
+{{ domain }}:8443 {
+    bind 127.0.0.1
+    root * /var/www/html
+    file_server
+    header Server "nginx"
+}
